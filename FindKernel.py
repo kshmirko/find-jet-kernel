@@ -6,6 +6,7 @@ import matplotlib.patches as pa
 import scipy.interpolate as si
 import pylab as plt
 import copy
+import scipy as sc
 
 from utils import getAlt, centroid
 
@@ -14,7 +15,7 @@ PATH = r'../ecmwf-getmeteo/ex2008.nc'
 LON0 = 131.9
 LAT0 = 43.1
 eps=0.75/2
-threshold = 15
+threshold = 40
 itime = 10
 
 
@@ -59,7 +60,8 @@ uwnd0 = fuwnd(lat, Alt)
 
 # применяем пороговый фильтр
 uwnd0_thres = copy.deepcopy(uwnd0)
-uwnd0_thres[uwnd0_thres<threshold] = 0
+uwnd0_thres = uwnd0_thres - threshold
+uwnd0_thres[uwnd0_thres<0] = 0
 
 # выделяем найденные области
 labeled_image, number_of_objects = img.label(uwnd0_thres)
@@ -93,8 +95,8 @@ ax1.imshow(uwnd0, extent=(lat.min(),lat.max(), Alt.min(),Alt.max()), aspect='aut
 ax2.imshow(uwnd0_thres, extent=(lat.min(),lat.max(), Alt.min(),Alt.max()), aspect='auto',
            origin='lower')
 
-ax3.hist(uwnd0.flat)
-
+ax3.hist(uwnd0.flat, bins=15, normed=True, cumulative=True, histtype='step')
+ax3.hist(uwnd0_thres.flat, bins=15, normed=True, cumulative=True, histtype='step')
 
 #for peak_slice in peak_slices:  #Draw some rectangles around the objects
 #    dy,dx  = peak_slice
@@ -118,7 +120,6 @@ for centr in centroids:
 plt.show()
 # Закрываем базу данных
 F.close()
-
 
 
 

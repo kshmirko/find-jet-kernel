@@ -21,3 +21,5 @@ def centroid(alat, alev, data):
     cy = sum(Y*data)/sum(data)
 
     return cx,cy
+
+def centroidmax(alat, alev, data):
