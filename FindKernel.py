@@ -8,14 +8,16 @@ import pylab as plt
 import copy
 import scipy as sc
 
-from utils import getAlt, centroid
+from utils import getAlt, centroid, centroidmax, centroidmin
+
+PLOT=not False
 
 # параметры расчета
 PATH = r'../ecmwf-getmeteo/ex2008.nc'
 LON0 = 131.9
 LAT0 = 43.1
 eps=0.75/2
-threshold = 40
+threshold = 50
 itime = 10
 
 
@@ -24,6 +26,8 @@ itime = 10
 F = nc.Dataset(PATH)
 
 varTime = F.variables['time']
+N = len(varTime)
+
 Time = nc.num2date(varTime, varTime.units)
 
 lat = F.variables['latitude'][::-1]
@@ -37,189 +41,90 @@ ilat, = np.where(np.abs(lat-LAT0)<eps)[0]
 
 # Разрез скорости ветра
 uwnd = F.variables['u'][...]
+centers = []
 
-# вдоль долготы ilon
-uwnd0=uwnd[itime,:,:,ilon]
-
-print level, level[-1]
+for itime in range(N):
 
 
-alt0 = getAlt(level, 1013.25)
+    # вдоль долготы ilon
+    uwnd0=uwnd[itime,:,:,ilon]
+
+    alt0 = getAlt(level, 1013.25)
 
 
-fuwnd = si.interp2d(lat, alt0, uwnd0, kind='linear', bounds_error=False, fill_value=0)
+    fuwnd = si.interp2d(lat, alt0, uwnd0, kind='linear', bounds_error=False, fill_value=0)
 
 
-# Новая сетка высот
-Alt = np.linspace(0,25000,200)
-lat = np.linspace(30,60,60)
+    # Новая сетка высот
+    nAlt = np.linspace(0,25000,200)
+    nlat = np.linspace(30,60,60)
 
-# Интерполяция данных скорости ветра на новую сетку
-uwnd0 = fuwnd(lat, Alt)
+    # Интерполяция данных скорости ветра на новую сетку
+    uwnd0 = fuwnd(nlat, nAlt)
 
+    threshold = uwnd0.max()*0.90
 
-# применяем пороговый фильтр
-uwnd0_thres = copy.deepcopy(uwnd0)
-uwnd0_thres = uwnd0_thres - threshold
-uwnd0_thres[uwnd0_thres<0] = 0
+    # применяем пороговый фильтр
+    uwnd0_thres = copy.deepcopy(uwnd0)
+    uwnd0_thres = uwnd0_thres - threshold
+    uwnd0_thres[uwnd0_thres<0] = 0
 
-# выделяем найденные области
-labeled_image, number_of_objects = img.label(uwnd0_thres)
-peak_slices = img.find_objects(labeled_image)
-
-
-# поиск центров масс
-centroids = []
-
-for peak_slice in peak_slices:
-    dy,dx  = peak_slice
-
-    alat = lat[dx]
-    alev = Alt[dy]
+    # выделяем найденные области
+    labeled_image, number_of_objects = img.label(uwnd0_thres)
+    peak_slices = img.find_objects(labeled_image)
 
 
-    cx,cy = centroid(alat, alev, uwnd0[peak_slice])
-    centroids.append((cx, cy))
 
-print centroids
 
-plt.figure()
-ax1 = plt.subplot(221)
-ax2 = plt.subplot(222)
-ax3 = plt.subplot(223)
-ax4 = plt.subplot(224)
+    centeroids=[]
+    # поиск центров масс
+    for peak_slice in peak_slices:
+        dy,dx  = peak_slice
 
-ax1.imshow(uwnd0, extent=(lat.min(),lat.max(), Alt.min(),Alt.max()), aspect='auto',
-           origin='lower')
+        alat = nlat[dx]
+        alev = nAlt[dy]
 
-ax2.imshow(uwnd0_thres, extent=(lat.min(),lat.max(), Alt.min(),Alt.max()), aspect='auto',
-           origin='lower')
 
-ax3.hist(uwnd0.flat, bins=15, normed=True, cumulative=True, histtype='step')
-ax3.hist(uwnd0_thres.flat, bins=15, normed=True, cumulative=True, histtype='step')
+        cx,cy = centroid(alat, alev, uwnd0[peak_slice])
+        centeroids.append((Time[itime], cx, cy))
+    centers=centers+list(centeroids)
+#    print centroids
 
-#for peak_slice in peak_slices:  #Draw some rectangles around the objects
-#    dy,dx  = peak_slice
-#    alat = lat[dx]
-#    alev = Alt[dy]
-#    xy     = (lat[dx.start], Alt[dy.start])
-#    width  = (lat[dx.stop] - lat[dx.start])
-#    height = (Alt[dy.stop] - Alt[dy.start])
-#    rect = pa.Rectangle(xy,width,height,fc='none',ec='red')
-#    ax3.add_patch(rect,)
 
-ax4.imshow(uwnd0_thres, extent=(lat.min(),lat.max(), Alt.min(),Alt.max()), aspect='auto',
-           origin='lower')
+    if PLOT:
+        # Рисуем графики
+        plt.figure()
+        ax1 = plt.subplot(221)
+        ax2 = plt.subplot(222)
+        ax4 = plt.subplot2grid([2,2],(1,0),colspan=2)
+        #ax4 = plt.subplot(223, colspan=2)
 
-for centr in centroids:
-    ax4.plot(centr[0],centr[1],'kx')
+        ax1.imshow(uwnd0, extent=(nlat.min(),nlat.max(), nAlt.min(),nAlt.max()), aspect='auto',
+                   origin='lower')
 
-#ax4.imshow(uwnd0_thres, extent=(lat.min(),lat.max(), Alt.min(),Alt.max()), aspect='auto',
-#           origin='lower')
+        ax2.imshow(uwnd0_thres, extent=(nlat.min(),nlat.max(), nAlt.min(),nAlt.max()), aspect='auto',
+                   origin='lower')
 
-plt.show()
+        #ax3.hist(uwnd0.flat, bins=15, normed=True, cumulative=True, histtype='step')
+        #ax3.hist(uwnd0_thres.flat, bins=15, normed=True, cumulative=True, histtype='step')
+
+
+        ax4.imshow(uwnd0_thres, extent=(nlat.min(),nlat.max(), nAlt.min(),nAlt.max()), aspect='auto',
+                   origin='lower')
+        ax4.grid(which='both', c='w',ls='-.', lw=1)
+
+        for centr in centeroids:
+            ax4.plot(centr[1],centr[2],'kx', mew=7)
+
+        figname = "figure%03d.pdf"%(itime)
+        plt.savefig(figname)
+        for ax in (ax1,ax2, ax4):
+            ax.clear()
+        plt.close()
 # Закрываем базу данных
 F.close()
 
+for item in centers:
+    print item[0].strftime('%Y-%m-%d'), item[1], item[2]
 
 
-
-
-#
-#uwnd[uwnd<threshold]=0
-#uwnd0=uwnd[0,:,:,ilon]
-
-#def centroid(alat, alev, data):
-#    h,w = np.shape(data)
-#    x = alat
-#    y = alev
-#
-#    X,Y = np.meshgrid(x-x[0],y-y[0])
-#
-#    cx = np.sum(X*data)/np.sum(data)
-#    cy = np.sum(Y*data)/np.sum(data)
-#
-#    return cx+x[0],cy+y[0]
-
-#def centroid(data):
-#    h,w = np.shape(data)
-#    x = np.arange(0,w)
-#    y = np.arange(0,h)
-#
-#    X,Y = np.meshgrid(x,y)
-#
-#    cx = np.sum(X*data)/np.sum(data)
-#    cy = np.sum(Y*data)/np.sum(data)
-#
-#    return cx,cy
-#
-#def getAlt(P,P0):
-#    return 1/7988.28*np.log(P0/P)
-
-
-
-#
-#
-#print F.variables['pv'].shape
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#labeled_image, number_of_objects = img.label(uwnd0)
-#peak_slices = img.find_objects(labeled_image)
-#
-#
-#
-#centroids = []
-#import pylab as plt
-#for peak_slice in peak_slices:
-#    dy,dx  = peak_slice
-#
-#    x,y = dx.start, dy.start
-#
-#    cx,cy = centroid(uwnd0[peak_slice])
-#    centroids.append((cx+x,cy+y))
-#
-#
-#print centroids
-#
-#
-#
-#print labeled_image, number_of_objects
-#
-#plt.figure()
-#plt.imshow(labeled_image)
-#for c in centroids:
-#    plt.plot(c[0],c[1],'kx')
-#
-#
-#
-#plt.figure(dpi=100)
-#plt.imshow(uwnd[0,:,:,ilon], vmin=0, vmax=50,
-#           extent=(lat.min(),lat.max(), level.max(), level.min()),
-#           interpolation='bilinear',
-#           norm=None,
-#           aspect='auto')
-#
-#plt.colorbar()
-#plt.contour(uwnd[0,:,:,ilon],10, vmin=0, vmax=50,
-#           extent=(lat.min(),lat.max(), level.min(),level.max()),
-#           interpolation='gaussian',
-#           norm=None,
-#           aspect='auto',
-#           colors='k')
-#
-#
-#
-#plt.figure()
-#plt.hist(uwnd[0,:,:,ilon].flat)
-#
-#plt.show()
-#F.close()
