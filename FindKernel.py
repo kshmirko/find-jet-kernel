@@ -8,9 +8,9 @@ import pylab as plt
 import copy
 import scipy as sc
 
-from utils import getAlt, centroid, centroidmax, centroidmin
+from utils import getAlt, findmax
 
-PLOT=not False
+PLOT= not False
 
 # параметры расчета
 PATH = r'../ecmwf-getmeteo/ex2008.nc'
@@ -43,7 +43,7 @@ ilat, = np.where(np.abs(lat-LAT0)<eps)[0]
 uwnd = F.variables['u'][...]
 centers = []
 
-for itime in range(N):
+for itime in range(15,17):
 
 
     # вдоль долготы ilon
@@ -62,33 +62,9 @@ for itime in range(N):
     # Интерполяция данных скорости ветра на новую сетку
     uwnd0 = fuwnd(nlat, nAlt)
 
-    threshold = uwnd0.max()*0.90
+#    threshold = uwnd0.max()*0.90
 
-    # применяем пороговый фильтр
-    uwnd0_thres = copy.deepcopy(uwnd0)
-    uwnd0_thres = uwnd0_thres - threshold
-    uwnd0_thres[uwnd0_thres<0] = 0
-
-    # выделяем найденные области
-    labeled_image, number_of_objects = img.label(uwnd0_thres)
-    peak_slices = img.find_objects(labeled_image)
-
-
-
-
-    centeroids=[]
-    # поиск центров масс
-    for peak_slice in peak_slices:
-        dy,dx  = peak_slice
-
-        alat = nlat[dx]
-        alev = nAlt[dy]
-
-
-        cx,cy = centroid(alat, alev, uwnd0[peak_slice])
-        centeroids.append((Time[itime], cx, cy))
-    centers=centers+list(centeroids)
-#    print centroids
+    LAT, LEV, V = findmax(lat, alt0, fuwnd)
 
 
     if PLOT:
@@ -102,29 +78,30 @@ for itime in range(N):
         ax1.imshow(uwnd0, extent=(nlat.min(),nlat.max(), nAlt.min(),nAlt.max()), aspect='auto',
                    origin='lower')
 
-        ax2.imshow(uwnd0_thres, extent=(nlat.min(),nlat.max(), nAlt.min(),nAlt.max()), aspect='auto',
-                   origin='lower')
+#        ax2.imshow(uwnd0_thres, extent=(nlat.min(),nlat.max(), nAlt.min(),nAlt.max()), aspect='auto',
+#                   origin='lower')
 
         #ax3.hist(uwnd0.flat, bins=15, normed=True, cumulative=True, histtype='step')
         #ax3.hist(uwnd0_thres.flat, bins=15, normed=True, cumulative=True, histtype='step')
 
 
-        ax4.imshow(uwnd0_thres, extent=(nlat.min(),nlat.max(), nAlt.min(),nAlt.max()), aspect='auto',
-                   origin='lower')
-        ax4.grid(which='both', c='w',ls='-.', lw=1)
+#        ax4.imshow(uwnd0_thres, extent=(nlat.min(),nlat.max(), nAlt.min(),nAlt.max()), aspect='auto',
+#                   origin='lower')
+#        ax4.grid(which='both', c='w',ls='-.', lw=1)
 
-        for centr in centeroids:
-            ax4.plot(centr[1],centr[2],'kx', mew=7)
+        for centr in zip(LAT,LEV):
+            ax1.plot(centr[0],centr[1],'kx', mew=7)
 
         figname = "figure%03d.pdf"%(itime)
-        plt.savefig(figname)
+        plt.show()
+#        plt.savefig(figname)
         for ax in (ax1,ax2, ax4):
             ax.clear()
         plt.close()
 # Закрываем базу данных
 F.close()
 
-for item in centers:
-    print item[0].strftime('%Y-%m-%d'), item[1], item[2]
+#for item in centers:
+#    print item[0].strftime('%Y-%m-%d'), item[1], item[2]
 
 

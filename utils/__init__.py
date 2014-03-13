@@ -1,4 +1,4 @@
 #
 
 from getAlt import getAlt
-from centroid import centroid, centroidmax, centroidmin
+from centroid import centroid, centroidmax, centroidmin, findmax
